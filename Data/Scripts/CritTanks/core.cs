@@ -24,31 +24,31 @@ using VRage.ModAPI;
 using VRage.ObjectBuilders;
 
 namespace Dondelium.crittanks{
-	[MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
-	public class CriticalExplode : MySessionComponentBase{
+  [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
+  public class CriticalExplode : MySessionComponentBase{
     bool hasinit = false;
     bool isServer = false;
     MyRandom rand = new MyRandom();
     
-		public override void UpdateBeforeSimulation(){
-			if (!hasinit){
-				if (MyAPIGateway.Session == null) return;
-				Init();
-			}
-		}
+    public override void UpdateBeforeSimulation(){
+      if (!hasinit){
+        if (MyAPIGateway.Session == null) return;
+        Init();
+      }
+    }
     
-		private void Init(){
-			hasinit = true;
-			isServer = MyAPIGateway.Session.OnlineMode == MyOnlineModeEnum.OFFLINE || MyAPIGateway.Multiplayer.IsServer;
-			if(isServer) MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, damageHook);
+    private void Init(){
+      hasinit = true;
+      isServer = MyAPIGateway.Session.OnlineMode == MyOnlineModeEnum.OFFLINE || MyAPIGateway.Multiplayer.IsServer;
+      if(isServer) MyAPIGateway.Session.DamageSystem.RegisterBeforeDamageHandler(0, damageHook);
     }
 
     private void damageHook(object target, ref MyDamageInformation info){
       if (info.Type==MyDamageType.Grind) return;
 
-			if (target is IMySlimBlock){
-				var entity = target as IMySlimBlock;{
-					if (entity.FatBlock is IMyGasTank){
+      if (target is IMySlimBlock){
+        var entity = target as IMySlimBlock;{
+          if (entity.FatBlock is IMyGasTank){
             var tBlock = entity.FatBlock as IMyTerminalBlock;
             var def = entity.BlockDefinition as MyCubeBlockDefinition;
             var grid = tBlock.CubeGrid as IMyCubeGrid;
@@ -59,7 +59,7 @@ namespace Dondelium.crittanks{
             float curDmg = info.Amount + entity.CurrentDamage;
 
             if(tBlock.IsWorking && curDmg > critdmg){
-              float dmg = (gasBlock.Capacity * (float)gasBlock.FilledRatio * 0.006f / grid.GridSize);
+              float dmg = (gasBlock.Capacity * (float)gasBlock.FilledRatio * 0.003f / grid.GridSize);
 
               //Check atmospheres. If we find oxygen, bigger boom, else, much smaller boom.
               bool airtight = false;
@@ -81,12 +81,6 @@ namespace Dondelium.crittanks{
                 }
               }
 
-              //Shrapnel from remaining tank integrity
-              float shrapnel = 0f;
-              if(entity.MaxIntegrity > curDmg && (float)gasBlock.FilledRatio >= 0.5f)
-                shrapnel = (entity.MaxIntegrity - curDmg) / 4;
-              dmg += shrapnel;
-
               //Potential explosion damage less than remaining tank health? Cancel explosion, and vent!
               if((dmg * 2.5f) < (entity.MaxIntegrity - curDmg)){
                 if(grid.Physics == null || grid.Physics.IsStatic)
@@ -97,6 +91,10 @@ namespace Dondelium.crittanks{
                 Vector3 thrustVec = new Vector3(x, y, z);
                 grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, Vector3.Normalize(thrustVec) * (gasBlock.Capacity * (float)gasBlock.FilledRatio * 20), myPos, null);
                 return;
+              } else {
+                //Shrapnel from remaining tank integrity
+                if(entity.MaxIntegrity > curDmg && (float)gasBlock.FilledRatio >= 0.5f)
+                  dmg += (entity.MaxIntegrity - curDmg) / 4;
               }
 
               //Finalize damage and radius
@@ -104,20 +102,28 @@ namespace Dondelium.crittanks{
               if(dmg > 500000f) dmg = 500000f;
               if(radius > 100f) radius = 100f;
 
+              //Explosion Effects!
+              MyParticleEffect explosionEffect = null;
+              MyParticlesManager.TryCreateParticleEffect("Explosion_Missile", gasBlock.WorldMatrix, out explosionEffect);
+              if (explosionEffect != null){
+                explosionEffect.UserScale = radius / 6f;
+                explosionEffect.UserLifeMultiplier = radius / 7f;
+              }
+
               //Explosion Damage!
               BoundingSphereD sphere = new BoundingSphereD(myPos, radius);
               MyExplosionInfo bomb = new MyExplosionInfo(dmg, dmg, sphere, MyExplosionTypeEnum.BOMB_EXPLOSION, true, true);
-              bomb.CreateParticleEffect = true;
+              bomb.CreateParticleEffect = false;
               bomb.LifespanMiliseconds = 150 + (int)radius * 45;
               MyExplosions.AddExplosion(ref bomb, true);
 
-              //MyAPIGateway.Utilities.ShowNotification(dmg.ToString()+" "+radius.ToString(), 15000, MyFontEnum.Red);
+              //MyAPIGateway.Utilities.ShowNotification("Damage: "+dmg.ToString()+" Radius: "+radius.ToString(), 15000, MyFontEnum.Red);
             }
-					}
-				}
-			}
+          }
+        }
+      }
     }
 
-		protected override void UnloadData(){}
+    protected override void UnloadData(){}
   }
 }
