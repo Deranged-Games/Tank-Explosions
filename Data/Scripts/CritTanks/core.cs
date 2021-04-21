@@ -56,10 +56,10 @@ namespace Dondelium.crittanks{
             Vector3D myPos = gasBlock.GetPosition();
 
             float critdmg = (1f - def.CriticalIntegrityRatio) * entity.MaxIntegrity;
-            float curDmg = info.Amount + entity.CurrentDamage;
+            float curDmg = info.Amount + entity.CurrentDamage + (entity.MaxIntegrity - entity.BuildIntegrity);
 
             if(tBlock.IsWorking && curDmg > critdmg){
-              float dmg = (gasBlock.Capacity * (float)gasBlock.FilledRatio * 0.003f / grid.GridSize);
+              float dmg = (gasBlock.Capacity * (float)gasBlock.FilledRatio * 0.003f);
 
               //Check atmospheres. If we find oxygen, bigger boom, else, much smaller boom.
               bool airtight = false;
@@ -82,7 +82,7 @@ namespace Dondelium.crittanks{
               }
 
               //Potential explosion damage less than remaining tank health? Cancel explosion, and vent!
-              if((dmg * 2.5f) < (entity.MaxIntegrity - curDmg)){
+              if((dmg * 2.5f) < (entity.MaxIntegrity - curDmg) * grid.GridSize){
                 if(grid.Physics == null || grid.Physics.IsStatic)
                   return;
                 float x = rand.NextFloat() * 2 - 1;
